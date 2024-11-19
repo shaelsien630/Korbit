@@ -259,3 +259,7 @@ korbit
 - UI/UX를 고려하여 메시지는 일정 시간 후 자동으로 사라지도록 애니메이션을 적용할 수 있습니다.
 
 <br>
+
+## 6. 실행 화면
+
+![](https://github.com/user-attachments/assets/75281c19-3b0b-4b54-8153-164fa05dfcff)
