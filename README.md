@@ -1,5 +1,5 @@
 
-# Korbit iOS 과제
+# Korbit
 > 실시간 암호화폐 시세 정보 조회 앱  
 
 <br>
