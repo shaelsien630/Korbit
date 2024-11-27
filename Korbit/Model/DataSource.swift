@@ -9,54 +9,77 @@ import Foundation
 import Combine
 
 protocol DataSourceProtocol {
-    func fetchTickersPeriodically() -> AnyPublisher<Data, URLError>
+    // REST API
     func fetchTickers() -> AnyPublisher<Data, URLError>
     func fetchCurrencies() -> AnyPublisher<Data, URLError>
+    
+    // WebSocket API
+    func connectWebSocket()
+    func sendWebSocketMessage(message: [[String: Any]])
+    func receiveWebSocketMessages() -> AnyPublisher<Data, Error>
+    func disconnectWebSocket()
+    func reconnectWebSocket()
 }
 
 final class DataSource: DataSourceProtocol {
-    private let tickerURL: String = "https://api.korbit.co.kr/v2/tickers"
-    private let currencyURL: String = "https://api.korbit.co.kr/v2/currencies"
-    private var cancellables = Set<AnyCancellable>()
+    private let tickerURL: String = APIConfig.value(forKey: "tickerURL") ?? ""
+    private let currencyURL: String = APIConfig.value(forKey: "currencyURL") ?? ""
+    private let webSocketManager: WebSocketManager
     
-    // 1초마다 데이터를 요청하는 함수
-    func fetchTickersPeriodically() -> AnyPublisher<Data, URLError> {
-        guard let url = URL(string: tickerURL) else {
-            fatalError("Invalid URL")
-        }
-        
-        return Timer.publish(every: 1, on: .main, in: .default)
-            .autoconnect()
-            .flatMap { _ in
-                URLSession.shared.dataTaskPublisher(for: url)
-                    .map { $0.data }
-                    .catch { _ in Empty<Data, URLError>() }
-            }
-            .eraseToAnyPublisher()
+    init(webSocketManager: WebSocketManager = WebSocketManager()) {
+        self.webSocketManager = webSocketManager
     }
     
-    // 기존 단발성 데이터 요청
+    // MARK: - REST API
     func fetchTickers() -> AnyPublisher<Data, URLError> {
         guard let url = URL(string: tickerURL) else {
-            fatalError("Invalid URL")
+            return Fail(error: URLError(.badURL))
+                        .eraseToAnyPublisher()
         }
         return URLSession.shared.dataTaskPublisher(for: url)
             .map { $0.data }
-            .handleEvents(receiveSubscription: { [weak self] _ in
-                self?.cancellables.insert(AnyCancellable { })
-            })
             .eraseToAnyPublisher()
     }
     
     func fetchCurrencies() -> AnyPublisher<Data, URLError> {
         guard let url = URL(string: currencyURL) else {
-            fatalError("Invalid URL")
+            return Fail(error: URLError(.badURL))
+                        .eraseToAnyPublisher()
         }
         return URLSession.shared.dataTaskPublisher(for: url)
             .map { $0.data }
-            .handleEvents(receiveSubscription: { [weak self] _ in
-                self?.cancellables.insert(AnyCancellable { })
-            })
             .eraseToAnyPublisher()
+    }
+    
+    // MARK: - WebSocket API
+    func connectWebSocket() {
+        webSocketManager.connect(to: APIConfig.value(forKey: "webSocketURL") ?? "")
+    }
+    
+    func sendWebSocketMessage(message: [[String: Any]]) {
+        webSocketManager.sendMessage(message)
+    }
+    
+    func receiveWebSocketMessages() -> AnyPublisher<Data, Error> {
+        webSocketManager.messagePublisher()
+    }
+    
+    func disconnectWebSocket() {
+        webSocketManager.disconnect()
+    }
+    
+    func reconnectWebSocket() {
+        webSocketManager.reconnect()
+    }
+}
+
+struct APIConfig {
+    static func value(forKey key: String) -> String? {
+        guard let path = Bundle.main.path(forResource: "APIURL", ofType: "plist"),
+              let plist = NSDictionary(contentsOfFile: path) else {
+            print("Failed to load APIURL.plist")
+            return nil
+        }
+        return plist[key] as? String
     }
 }

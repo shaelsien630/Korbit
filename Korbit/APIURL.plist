@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>tickerURL</key>
+	<string>https://api.korbit.co.kr/v2/tickers</string>
+	<key>currencyURL</key>
+	<string>https://api.korbit.co.kr/v2/currencies</string>
+	<key>webSocketURL</key>
+	<string>wss://ws-api.korbit.co.kr/v2/ws</string>
+</dict>
+</plist>

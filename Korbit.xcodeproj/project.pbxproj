@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		610ADE9E2CF4AE9A00484151 /* WebSocketManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610ADE9D2CF4AE9A00484151 /* WebSocketManager.swift */; };
+		610ADEC02CF5B6E900484151 /* APIURL.plist in Resources */ = {isa = PBXBuildFile; fileRef = 610ADEBF2CF5B6E900484151 /* APIURL.plist */; };
 		61FA1A872CECA69100B41B1A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 61FA1A7E2CECA69100B41B1A /* Preview Assets.xcassets */; };
 		61FA1A882CECA69100B41B1A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 61FA1A802CECA69100B41B1A /* Assets.xcassets */; };
 		61FA1A9B2CECA6B400B41B1A /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61FA1A992CECA6B400B41B1A /* ToastView.swift */; };
@@ -26,6 +28,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		610ADE9D2CF4AE9A00484151 /* WebSocketManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketManager.swift; sourceTree = "<group>"; };
+		610ADEBF2CF5B6E900484151 /* APIURL.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = APIURL.plist; sourceTree = "<group>"; };
 		61FA1A6C2CECA68600B41B1A /* Korbit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Korbit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		61FA1A7E2CECA69100B41B1A /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		61FA1A802CECA69100B41B1A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -90,6 +94,7 @@
 				61FA1A9A2CECA6B400B41B1A /* View */,
 				61FA1A7F2CECA69100B41B1A /* Preview Content */,
 				61FA1A802CECA69100B41B1A /* Assets.xcassets */,
+				610ADEBF2CF5B6E900484151 /* APIURL.plist */,
 				61FA1A822CECA69100B41B1A /* Korbit.entitlements */,
 			);
 			path = Korbit;
@@ -109,6 +114,7 @@
 				61FA1A8B2CECA6B400B41B1A /* Model.swift */,
 				61FA1A8C2CECA6B400B41B1A /* DataSource.swift */,
 				61FA1A8D2CECA6B400B41B1A /* Repository.swift */,
+				610ADE9D2CF4AE9A00484151 /* WebSocketManager.swift */,
 				61FA1A8E2CECA6B400B41B1A /* BookmarkManager.swift */,
 				61FA1A8F2CECA6B400B41B1A /* FormatterHelper.swift */,
 			);
@@ -183,6 +189,8 @@
 			);
 			mainGroup = 61FA1A632CECA68600B41B1A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 61FA1A6D2CECA68600B41B1A /* Products */;
 			projectDirPath = "";
@@ -198,6 +206,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				610ADEC02CF5B6E900484151 /* APIURL.plist in Resources */,
 				61FA1A872CECA69100B41B1A /* Preview Assets.xcassets in Resources */,
 				61FA1A882CECA69100B41B1A /* Assets.xcassets in Resources */,
 			);
@@ -221,6 +230,7 @@
 				61FA1AA32CECA6B400B41B1A /* BookmarkView.swift in Sources */,
 				61FA1AA52CECA6B400B41B1A /* MarketView.swift in Sources */,
 				61FA1AA62CECA6B400B41B1A /* BookmarkManager.swift in Sources */,
+				610ADE9E2CF4AE9A00484151 /* WebSocketManager.swift in Sources */,
 				61FA1AAA2CECA71800B41B1A /* KorbitApp.swift in Sources */,
 				61FA1AA72CECA6B400B41B1A /* TickerView.swift in Sources */,
 				61FA1AA82CECA6B400B41B1A /* Model.swift in Sources */,

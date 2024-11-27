@@ -9,62 +9,37 @@ import Foundation
 import Combine
 
 protocol RepositoryProtocol {
-    func fetchTickersPeriodically() -> AnyPublisher<[Ticker], Error>
     func fetchTickers() -> AnyPublisher<[Ticker], Error>
     func fetchCurrencies() -> AnyPublisher<[Currency], Error>
     func fetchTickersWithCurrencies() -> AnyPublisher<[Ticker], Error>
+    
+    func connectWebSocket()
+    func disconnectWebSocket()
+    func subscribeToTickers(symbols: [String])
+    func receiveTickerUpdates() -> AnyPublisher<Ticker, Error>
 }
 
 class Repository: RepositoryProtocol {
     private let dataSource: DataSourceProtocol
-    private var cancellables = Set<AnyCancellable>() // Cancellable 관리를 위한 Set
     
     init(dataSource: DataSourceProtocol = DataSource()) {
         self.dataSource = dataSource
     }
     
-    func fetchTickersPeriodically() -> AnyPublisher<[Ticker], Error> {
-        dataSource.fetchTickersPeriodically() // DataSource의 주기적 호출 기능 사용
-            .tryMap { data in
-                struct ResponseData: Decodable {
-                    let success: Bool
-                    let data: [Ticker]
-                }
-                let decodedResponse = try JSONDecoder().decode(ResponseData.self, from: data)
-                return decodedResponse.data
-            }
-            .eraseToAnyPublisher()
+    private func decodeResponse<T: Decodable>(_ data: Data, type: T.Type) throws -> T {
+        let decodedResponse = try JSONDecoder().decode(ResponseData<T>.self, from: data)
+        return decodedResponse.data
     }
     
     func fetchTickers() -> AnyPublisher<[Ticker], Error> {
         dataSource.fetchTickers()
-            .tryMap { data in
-                struct ResponseData: Decodable {
-                    let success: Bool
-                    let data: [Ticker]
-                }
-                let decodedResponse = try JSONDecoder().decode(ResponseData.self, from: data)
-                return decodedResponse.data
-            }
-            .handleEvents(receiveSubscription: { [weak self] _ in
-                self?.cancellables.insert(AnyCancellable { })
-            })
+            .tryMap { try self.decodeResponse($0, type: [Ticker].self) }
             .eraseToAnyPublisher()
     }
     
     func fetchCurrencies() -> AnyPublisher<[Currency], Error> {
         dataSource.fetchCurrencies()
-            .tryMap { data in
-                struct ResponseData: Decodable {
-                    let success: Bool
-                    let data: [Currency]
-                }
-                let decodedResponse = try JSONDecoder().decode(ResponseData.self, from: data)
-                return decodedResponse.data
-            }
-            .handleEvents(receiveSubscription: { [weak self] _ in
-                self?.cancellables.insert(AnyCancellable { })
-            })
+            .tryMap { try self.decodeResponse($0, type: [Currency].self) }
             .eraseToAnyPublisher()
     }
     
@@ -83,4 +58,69 @@ class Repository: RepositoryProtocol {
             }
             .eraseToAnyPublisher()
     }
+    
+    func connectWebSocket() {
+        dataSource.connectWebSocket()
+    }
+    
+    func disconnectWebSocket() {
+        dataSource.disconnectWebSocket()
+    }
+    
+    func subscribeToTickers(symbols: [String]) {
+        let subscriptionMessage: [[String: Any]] =
+        [[ "method": "subscribe", "type": "ticker", "symbols": symbols ]]
+        dataSource.sendWebSocketMessage(message: subscriptionMessage)
+    }
+    
+    func receiveTickerUpdates() -> AnyPublisher<Ticker, Error> {
+        dataSource.receiveWebSocketMessages()
+            .tryMap { data in
+                let decodedResponse = try JSONDecoder().decode(TickerResponse.self, from: data)
+                return Ticker(
+                    symbol: decodedResponse.symbol,
+                    open: decodedResponse.data.open,
+                    high: decodedResponse.data.high,
+                    low: decodedResponse.data.low,
+                    close: decodedResponse.data.close,
+                    prevClose: decodedResponse.data.prevClose,
+                    priceChange: decodedResponse.data.priceChange,
+                    priceChangePercent: decodedResponse.data.priceChangePercent,
+                    volume: decodedResponse.data.volume,
+                    quoteVolume: decodedResponse.data.quoteVolume,
+                    bestBidPrice: decodedResponse.data.bestBidPrice,
+                    bestAskPrice: decodedResponse.data.bestAskPrice,
+                    lastTradedAt: decodedResponse.data.lastTradedAt
+                )
+            }
+            .eraseToAnyPublisher()
+    }
+}
+
+struct ResponseData<T: Decodable>: Decodable {
+    let success: Bool
+    let data: T
+}
+
+struct TickerResponse: Decodable {
+    let type: String
+    let timestamp: Int
+    let symbol: String
+    let snapshot: Bool?
+    let data: TickerData
+}
+
+struct TickerData: Decodable {
+    let open: String
+    let high: String
+    let low: String
+    let close: String
+    let prevClose: String
+    let priceChange: String
+    let priceChangePercent: String
+    let volume: String
+    let quoteVolume: String
+    let bestAskPrice: String
+    let bestBidPrice: String
+    let lastTradedAt: Int
 }

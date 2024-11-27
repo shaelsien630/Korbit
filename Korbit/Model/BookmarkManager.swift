@@ -10,7 +10,6 @@ import Combine
 
 class BookmarkManager {
     private let userDefaultsKey = "bookmarkedItems"
-    private var cancellables = Set<AnyCancellable>()
     
     // 현재 즐겨찾기 목록을 불러오는 함수
     private var bookmarks: Set<String> {

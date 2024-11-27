@@ -22,10 +22,12 @@ final class ViewModel: ObservableObject {
     @Published var currentSortOption: SortOption = .quoteVolume     // 정렬 기준
     @Published var isAscending: Bool = false                        // 오름차순 여부
     @Published var bookmarkToastMessage: String?                    // 즐겨찾기 추가/삭제 토스트 메시지
+    @Published var isWebSocketConnected = false                     // WebSocket 상태 추적
     
     private let repository: RepositoryProtocol
     private let bookmarkManager = BookmarkManager()
     private var cancellables = Set<AnyCancellable>()
+    private var symbols: [String]? = nil
     
     // MarketView - 검색어에 따라 필터링된 tickers
     var filteredTickers: [Ticker] {
@@ -40,58 +42,18 @@ final class ViewModel: ObservableObject {
             (ticker.bookmark == true) && (searchText.isEmpty || ticker.fullName?.localizedCaseInsensitiveContains(searchText) == true || ticker.symbol.localizedCaseInsensitiveContains(searchText))
         }
     }
-
+    
     init(repository: RepositoryProtocol = Repository()) {
         self.repository = repository
         fetchTickers()
-        startPeriodicFetch()
     }
     
     deinit {
+        disconnectWebSocket() // ViewModel 해제 시 WebSocket 연결 종료
         cancellables.removeAll() // ViewModel 해제 시 모든 구독 해제
     }
     
-    // 1초마다 현재가 조회 API를 호출하여 데이터를 업데이트하는 메서드
-    private func startPeriodicFetch() {
-        repository.fetchTickersPeriodically()
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { completion in
-                if case .failure(let error) = completion {
-                    print("Error in periodic fetch: \(error)")
-                }
-            }, receiveValue: { [weak self] newTickers in
-                self?.updateTickers(with: newTickers)
-            })
-            .store(in: &cancellables)
-    }
-    
-    // 새로운 데이터와 기존 데이터를 비교해 다른 부분만 업데이트
-    private func updateTickers(with newTickers: [Ticker]) {
-        // 새롭게 업데이트된 Ticker 목록을 순회하며 비교 및 업데이트
-        newTickers.forEach { newTicker in
-            // 기존 tickers에서 동일한 symbol을 가진 Ticker 검색
-            if let index = tickers.firstIndex(where: { $0.symbol == newTicker.symbol }) {
-                let existingTicker = tickers[index]
-                
-                // 비교를 통해 값이 달라진 경우에만 업데이트
-                if existingTicker.close != newTicker.close ||
-                    existingTicker.priceChangePercent != newTicker.priceChangePercent ||
-                    existingTicker.quoteVolume != newTicker.quoteVolume {
-                    
-                    var updatedTicker = newTicker
-                    // 기존 Ticker에서 fullName과 bookmark 정보를 유지
-                    updatedTicker.fullName = existingTicker.fullName
-                    updatedTicker.bookmark = existingTicker.bookmark
-                    tickers[index] = updatedTicker  // 변경된 Ticker만 업데이트
-                }
-            } else {
-                // 기존에 없던 새 Ticker는 추가
-                tickers.append(newTicker)
-            }
-        }
-    }
-    
-    // 1. fetchTickers(): 데이터를 가져오고, 결과에 따라 tickers 배열을 업데이트
+    // fetchTickers(): 데이터를 가져오고, 결과에 따라 tickers 배열을 업데이트
     func fetchTickers() {
         repository.fetchTickersWithCurrencies()
             .sink(receiveCompletion: { completion in
@@ -107,11 +69,52 @@ final class ViewModel: ObservableObject {
                 }
                 sortTickers()
                 isDataLoaded = true
+                
+                symbols = tickers.map { $0.symbol }
+                if let symbols = symbols {
+                    connectWebSocketAndSubscribe(symbols: symbols)
+                }
             })
             .store(in: &cancellables)
     }
     
-    // 2. updateSortOption(): 정렬 옵션을 업데이트하고, ticker 목록을 다시 정렬
+    private func connectWebSocketAndSubscribe(symbols: [String]) {
+        repository.connectWebSocket()
+        isWebSocketConnected = true
+        repository.subscribeToTickers(symbols: symbols)
+        repository.receiveTickerUpdates()
+            .receive(on: DispatchQueue.main)
+            .catch { [weak self] error -> AnyPublisher<Ticker, Never> in
+                print("WebSocket error: \(error)")
+                return Empty().eraseToAnyPublisher()
+            }
+            .sink(receiveValue: { [weak self] newTicker in
+                self?.updateTickers(with: newTicker)
+            })
+            .store(in: &cancellables)
+    }
+    
+    // updateTickers(): 새로운 데이터와 기존 데이터를 비교해 다른 부분만 업데이트
+    private func updateTickers(with newTicker: Ticker) {
+        if let index = tickers.firstIndex(where: { $0.symbol == newTicker.symbol }) {
+            let existingTicker = tickers[index]
+            
+            // 비교를 통해 값이 달라진 경우에만 업데이트
+            if existingTicker.close != newTicker.close ||
+                existingTicker.priceChangePercent != newTicker.priceChangePercent ||
+                existingTicker.quoteVolume != newTicker.quoteVolume {
+                var updatedTicker = newTicker
+                // 기존 Ticker에서 fullName과 bookmark 정보를 유지
+                updatedTicker.fullName = existingTicker.fullName
+                updatedTicker.bookmark = existingTicker.bookmark
+                DispatchQueue.main.async {
+                    self.tickers[index] = updatedTicker  // 변경된 Ticker만 업데이트
+                }
+            }
+        }
+    }
+    
+    // updateSortOption(): 정렬 옵션을 업데이트하고, ticker 목록을 다시 정렬
     func updateSortOption(_ option: SortOption) {
         if currentSortOption == option {
             isAscending.toggle()
@@ -122,7 +125,7 @@ final class ViewModel: ObservableObject {
         sortTickers()
     }
     
-    // 3. sortTickers(): 정렬 옵션에 따라 tickers 목록을 정렬
+    // sortTickers(): 정렬 옵션에 따라 tickers 목록을 정렬
     func sortTickers() {
         switch currentSortOption {
         case .symbol:
@@ -152,7 +155,7 @@ final class ViewModel: ObservableObject {
         }
     }
     
-    // 4. toggleBookmark(): 즐겨찾기 토글 및 업데이트
+    // toggleBookmark(): 즐겨찾기 토글 및 업데이트
     func toggleBookmark(for id: String) {
         bookmarkManager.toggleBookmark(for: id)
             .sink(receiveCompletion: { completion in
@@ -174,7 +177,7 @@ final class ViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    // 5. removeAllBookmarks(): 모든 즐겨찾기 해제
+    // removeAllBookmarks(): 모든 즐겨찾기 해제
     func removeAllBookmarks() {
         if bookmarkManager.getBookmarkCount() == 0 {
             self.bookmarkToastMessage = "즐겨찾기가 없습니다"
@@ -201,5 +204,14 @@ final class ViewModel: ObservableObject {
                 })
                 .store(in: &cancellables)
         }
+    }
+    
+    func reconnectWebSocket() {
+        if let symbols = symbols { connectWebSocketAndSubscribe(symbols: symbols) }
+    }
+    
+    func disconnectWebSocket() {
+        repository.disconnectWebSocket()
+        isWebSocketConnected = false
     }
 }
