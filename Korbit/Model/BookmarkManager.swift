@@ -24,30 +24,30 @@ class BookmarkManager {
     
     // 즐겨찾기 추가 함수
     func addBookmark(for id: String) -> AnyPublisher<Bool, Never> {
-        return Future { [weak self] promise in
-            DispatchQueue.global().async { // 비동기 저장
+        Just(id)
+            .subscribe(on: DispatchQueue.global()) // 백그라운드에서 작업 시작
+            .map { [weak self] id in
                 var updatedBookmarks = self?.bookmarks ?? []
                 updatedBookmarks.insert(id)
                 self?.bookmarks = updatedBookmarks // UserDefaults에 저장
-                promise(.success(true))
+                return true
             }
-        }
-        .receive(on: DispatchQueue.main) // 결과를 메인 스레드로 전달
-        .eraseToAnyPublisher()
+            .receive(on: DispatchQueue.main) // 결과를 메인 스레드로 전달
+            .eraseToAnyPublisher()
     }
     
     // 즐겨찾기 해제 함수
     func removeBookmark(for id: String) -> AnyPublisher<Bool, Never> {
-        return Future { [weak self] promise in
-            DispatchQueue.global().async { // 비동기 저장
+        Just(id)
+            .subscribe(on: DispatchQueue.global())
+            .map { [weak self] id in
                 var updatedBookmarks = self?.bookmarks ?? []
                 updatedBookmarks.remove(id)
-                self?.bookmarks = updatedBookmarks // UserDefaults에 저장
-                promise(.success(true))
+                self?.bookmarks = updatedBookmarks
+                return true
             }
-        }
-        .receive(on: DispatchQueue.main) // 결과를 메인 스레드로 전달
-        .eraseToAnyPublisher()
+            .receive(on: DispatchQueue.main) // 결과를 메인 스레드로 전달
+            .eraseToAnyPublisher()
     }
     
     // 즐겨찾기 상태 토글 함수
@@ -66,14 +66,13 @@ class BookmarkManager {
     
     // 모든 즐겨찾기 삭제 함수
     func clearAllBookmarks() -> AnyPublisher<Void, Never> {
-        return Future { [weak self] promise in
-            DispatchQueue.global().async {
+        Just(())
+            .subscribe(on: DispatchQueue.global()) // 백그라운드에서 작업 실행
+            .handleEvents(receiveOutput: { [weak self] _ in
                 self?.bookmarks = [] // UserDefaults의 즐겨찾기 초기화
-                promise(.success(()))
-            }
-        }
-        .receive(on: DispatchQueue.main)
-        .eraseToAnyPublisher()
+            })
+            .receive(on: DispatchQueue.main) // 결과를 메인 스레드로 전달
+            .eraseToAnyPublisher()
     }
     
     // 즐겨찾기 개수 확인 함수

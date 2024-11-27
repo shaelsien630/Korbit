@@ -31,8 +31,8 @@ final class DataSource: DataSourceProtocol {
     }
     
     // MARK: - REST API
-    func fetchTickers() -> AnyPublisher<Data, URLError> {
-        guard let url = URL(string: tickerURL) else {
+    func fetchData(from urlString: String) -> AnyPublisher<Data, URLError> {
+        guard let url = URL(string: urlString) else {
             return Fail(error: URLError(.badURL))
                         .eraseToAnyPublisher()
         }
@@ -40,15 +40,13 @@ final class DataSource: DataSourceProtocol {
             .map { $0.data }
             .eraseToAnyPublisher()
     }
-    
+
+    func fetchTickers() -> AnyPublisher<Data, URLError> {
+        fetchData(from: tickerURL)
+    }
+
     func fetchCurrencies() -> AnyPublisher<Data, URLError> {
-        guard let url = URL(string: currencyURL) else {
-            return Fail(error: URLError(.badURL))
-                        .eraseToAnyPublisher()
-        }
-        return URLSession.shared.dataTaskPublisher(for: url)
-            .map { $0.data }
-            .eraseToAnyPublisher()
+        fetchData(from: currencyURL)
     }
     
     // MARK: - WebSocket API
