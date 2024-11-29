@@ -14,11 +14,11 @@
 
 ## 2. 기술 스택
 
-- `MVVM` 패턴을 채택하여, 데이터 소스와 비즈니스 로직을 명확히 분리하였습니다.
-- `SwiftUI`로 UI 구성하고 화면 로직을 구현했습니다.
-- 비동기 데이터 흐름 관리를 위하여 `Combine` 을 사용했습니다.
-- 즐겨찾기 데이터를 `UserDefaults` 를 통해 저장했습니다.
-- `REST API`로 가상자산 데이터를 조회하고, `WebSocket API`를 통해 실시간 시세를 구현했습니다.
+- 아키텍처 : `MVVM` 패턴을 채택하여 데이터 소스와 비즈니스 로직을 분리하고 유지보수성을 향상.
+- UI 구현 : `SwiftUI`로 화면 구성 및 반응형 인터페이스 제공.
+- 데이터 흐름 : `Combine` 프레임워크를 통해 비동기 데이터 처리 및 구독 관리.
+- 저장소 : 즐겨찾기 데이터를 `UserDefaults`를 통해 저장.
+- 네트워크 통신 : `REST API`를 활용하여 초기 데이터 조회. `WebSocket API`를 활용하여 실시간 시세 업데이트.
 
 <br>
 
@@ -34,10 +34,11 @@
 
 ## 4. 추가 기능
 
-- 마켓/즐겨찾기 화면 전환 : `Swipe Gesture`를 통해 탭 간 이동 가능
-- 전체 즐겨찾기 해제 : 상단 우측 아이콘으로 즐겨찾기 목록 `전체 삭제`
-- 검색어 입력 지원 : 입력 중에도 `실시간 검색 결과 표시` 및 X 버튼을 통해 `검색어 지우기` 기능
+- 마켓/즐겨찾기 탭 간 화면 전환 : `Swipe Gesture`를 통해 탭 간 빠른 이동 가능
+- 전체 즐겨찾기 해제 : 상단 버튼으로 모든 즐겨찾기 목록 초기화
+- 검색어 입력 지원 : 입력 중 검색어 실시간 반영, 검색 초기화를 위한 X 버튼 제공.
 - 즐겨찾기 알림 : 즐겨찾기 추가/해제 시 `토스트 알림` 표시
+- 네크워크 자동 재연결: 네트워크 상태 변화 시 자동 재연결로 안정성 보장.
 
 <br>
 
@@ -80,19 +81,39 @@ korbit
 
 #### DataSource 클래스
 - `DataSource`는 `DataSourceProtocol`을 구현하는 `final class`로, 실제 API 호출을 수행하여 데이터를 가져오는 기능을 담당합니다.
-- `cancellables`: Combine의 `AnyCancellable` 객체를 저장하는 `Set`으로, 메모리 관리를 위해 구독을 저장해 두고, 클래스가 해제될 때 자동으로 구독을 취소합니다.
     
-#### fetchTickersPeriodically 메서드
-- `fetchTickersPeriodically` 메서드는 1초마다 시세 데이터를 요청하는 주기적인 데이터 요청 메서드입니다.
-- `Timer.publish(every: 1, on: .main, in: .default).autoconnect()`를 사용하여 1초마다 이벤트를 발생시키고, `flatMap`을 통해 매번 API 요청을 수행합니다.
-- `URLSession.shared.dataTaskPublisher`를 사용하여 비동기로 데이터를 가져오고, `catch` 연산자를 통해 오류가 발생했을 경우 빈 Publisher를 반환하여 스트림을 중단하지 않습니다.
-- `eraseToAnyPublisher()`를 사용해 `AnyPublisher<Data, URLError>`로 타입을 지워 반환합니다.
-    
-#### fetchTickers 메서드, fetchCurrencies 메서드
-- `fetchTickers`와 `fetchCurrencies` 메서드는 단발성으로 시세 데이터를 요청하는 메서드입니다.
-- `URLSession`의 `dataTaskPublisher`를 사용하여 주어진 URL로 네트워크 요청을 보내고, `map` 연산자로 데이터를 추출하여 반환합니다.
-- `handleEvents`에서 `cancellables`에 구독을 저장하여 메모리 관리가 자동으로 되도록 합니다.
-- `eraseToAnyPublisher()`를 통해 `AnyPublisher<Data, URLError>` 타입으로 반환합니다.
+#### fetchData 메서드
+- 주어진 URL에서 데이터를 요청하는 메서드로, 공통적인 REST API 요청 로직을 처리합니다.
+- URL이 유효하지 않은 경우 `Fail`을 반환하여 스트림을 종료하지 않고 처리할 수 있도록 합니다.
+- 반환된 데이터는 `Publisher`를 통해 상위 로직에서 처리할 수 있습니다.
+
+#### fetchTickers 메서드
+- 암호화폐 현재가 데이터를 단발성으로 요청하는 메서드입니다.
+- 내부적으로 `fetchData(from:)` 메서드를 호출하며, `tickerURL`을 사용합니다.
+
+#### fetchCurrencies 메서드
+- 암호화폐 정보 데이터를 단발성으로 요청하는 메서드입니다.
+- `fetchData(from:)` 메서드를 호출하며, `currencyURL`을 사용합니다.
+
+#### connectWebSocket 메서드
+- WebSocket 연결을 초기화하여 서버와 실시간 통신을 시작합니다.
+- WebSocket URL은 `APIConfig`에서 로드되며, 연결 후 수신 메시지를 대기합니다.
+
+#### sendWebSocketMessage 메서드
+- WebSocket 서버로 메시지를 전송하는 메서드입니다.
+- 전송할 메시지는 2차원 배열 형태로 JSON으로 변환 후 송신됩니다.
+
+#### receiveWebSocketMessages 메서드
+- WebSocket에서 수신한 메시지를 `Combine`의 `Publisher`로 제공하는 메서드입니다.
+- WebSocket에서 수신된 데이터를 상위 로직에서 처리할 수 있도록 반환합니다.
+
+#### disconnectWebSocket 메서드
+- WebSocket 연결을 종료하는 메서드입니다.
+- WebSocket 관련 자원을 해제하여 메모리 누수를 방지합니다.
+
+#### reconnectWebSocket 메서드
+- WebSocket 연결을 다시 시도하는 메서드입니다.
+- 기존 연결을 종료하고 새 연결을 설정하여 재연결을 처리합니다.
 
 </details>    
 
@@ -105,12 +126,6 @@ korbit
 
 #### Repository 클래스
 - `Repository`는 `RepositoryProtocol`을 구현하는 클래스이며, `DataSource`를 통해 데이터를 받아 비즈니스 로직에 맞게 가공하여 제공합니다.
-- `cancellables`: Combine의 `AnyCancellable` 객체를 저장하는 `Set`으로, 메모리 관리를 위해 구독을 저장하고 클래스가 해제될 때 자동으로 구독을 취소합니다.
-
-#### fetchTickersPeriodically 메서드
-- `fetchTickersPeriodically` 메서드는 `DataSource`의 주기적인 데이터 요청 기능을 활용하여 1초마다 시세 데이터를 요청하고, JSON 데이터를 `Ticker` 모델로 디코딩하여 반환합니다.
-- `tryMap`을 통해 JSON 데이터를 디코딩하며, 디코딩이 실패할 경우 오류를 반환합니다.
-- `eraseToAnyPublisher()`로 타입을 `AnyPublisher<[Ticker], Error>`로 변환해 반환합니다.
 
 #### fetchTickers 메서드, fetchCurrencies 메서드
 - `fetchTickers`와 `fetchCurrencies` 메서드는 단발성으로 시세 데이터와 암호화폐 목록 데이터를 요청하고, 데이터를 JSON에서 `Ticker`와 `Currency` 모델로 각각 디코딩하여 반환합니다.
@@ -121,6 +136,23 @@ korbit
 - `fetchTickersWithCurrencies` 메서드는 `fetchTickers`와 `fetchCurrencies`를 병합하여 각 `Ticker`에 해당 `Currency`의 전체 이름(`fullName`)을 추가하는 기능을 제공합니다.
 - `Publishers.Zip`을 사용해 두 데이터를 병렬로 가져오며, `map`을 통해 `Ticker` 데이터에 `Currency`의 `fullName`을 병합하여 `Ticker` 모델을 보강합니다.
 - 병합된 결과는 `AnyPublisher<[Ticker], Error>`로 반환되어, 최종적으로 필요한 데이터를 제공할 수 있습니다.
+
+#### connectWebSocket 메서드
+- WebSocket 연결을 초기화하는 메서드입니다.
+- `DataSource`의 `connectWebSocket()` 메서드를 호출합니다.
+
+#### disconnectWebSocket 메서드
+- WebSocket 연결을 종료하는 메서드입니다.
+- `DataSource`의 `disconnectWebSocket()` 메서드를 호출합니다.
+
+#### subscribeToTickers 메서드
+- WebSocket에 구독 요청 메시지를 전송하는 메서드입니다.
+- 구독할 암호화폐 심볼 리스트를 JSON 형태로 서버에 전송합니다.
+
+#### receiveTickerUpdates 메서드
+- WebSocket을 통해 실시간 `Ticker` 데이터를 수신하는 메서드입니다.
+- 수신된 데이터를 `Ticker` 모델로 디코딩하여 반환합니다.
+
 
 </details> 
 
@@ -141,11 +173,11 @@ korbit
 
 #### addBookmark 메서드
 - `addBookmark` 메서드는 특정 항목을 즐겨찾기에 추가하는 비동기 메서드입니다.
-- 비동기 `Future`를 사용하여 백그라운드 스레드에서 업데이트를 처리하고, 성공 여부를 `AnyPublisher<Bool, Never>`로 반환하여 Combine 스트림으로 관리할 수 있도록 합니다.
+- 비동기 `Just`를 사용하여 백그라운드 스레드에서 업데이트를 처리하고, 성공 여부를 `AnyPublisher<Bool, Never>`로 반환하여 Combine 스트림으로 관리할 수 있도록 합니다.
 
 #### removeBookmark 메서드
 - `removeBookmark` 메서드는 특정 항목을 즐겨찾기에서 제거하는 비동기 메서드입니다.
-- `addBookmark`와 유사하게 `Future`를 사용하여 비동기로 `UserDefaults`를 업데이트하며, 결과는 `AnyPublisher<Bool, Never>`로 반환됩니다.
+- `addBookmark`와 유사하게 `Just`를 사용하여 비동기로 `UserDefaults`를 업데이트하며, 결과는 `AnyPublisher<Bool, Never>`로 반환됩니다.
 
 #### toggleBookmark 메서드
 - `toggleBookmark` 메서드는 특정 항목이 이미 즐겨찾기에 존재하는지 확인하고, 존재하면 `removeBookmark`를, 존재하지 않으면 `addBookmark`를 호출하여 즐겨찾기 상태를 전환합니다.
@@ -175,6 +207,40 @@ korbit
 
 </details> 
 
+### 6) WebSocketManager.swift 
+> `WebSocket` 연결 및 데이터 송수신을 관리하는 클래스  
+
+<details>
+<summary> 더보기 </summary>
+
+#### connect 메서드
+- WebSocket 연결을 초기화하는 메서드입니다.
+- 연결 후 서버로부터 메시지를 수신할 준비를 합니다.
+
+#### sendMessage 메서드
+- WebSocket 서버로 JSON 형식의 메시지를 전송하는 메서드입니다.
+- 전송 중 에러가 발생하면 로그에 기록합니다.
+
+#### receiveMessage 메서드
+- WebSocket 메시지를 수신하여 처리하는 메서드입니다.
+- 문자열 또는 바이너리 메시지를 수신하여 `subject`로 전달합니다.
+
+#### messagePublisher 메서드
+- 수신 메시지를 `Combine`의 `Publisher`로 노출하는 메서드입니다.
+
+#### startPing 메서드
+- Ping 메시지를 주기적으로 전송하여 연결 상태를 유지합니다.
+- Ping 실패 시 WebSocket 연결을 재시도합니다.
+
+#### disconnect 메서드
+- WebSocket 연결을 종료하고 관련 리소스를 해제하는 메서드입니다.
+
+#### reconnect 메서드
+- WebSocket 연결을 재시작하는 메서드입니다.
+- 기존 연결 종료 후 새 연결을 생성합니다.
+
+</details>
+
 <br>
 
 ## 📂 ViewModel
@@ -185,18 +251,17 @@ korbit
 <details>
 <summary> 더보기 </summary>
 
-#### startPeriodicFetch 메서드
-- 1초마다 서버에서 최신 시세 데이터를 가져오는 메서드입니다.
-- `repository.fetchTickersPeriodically()`를 사용하여 주기적인 데이터를 수신하고, 새로운 데이터를 `updateTickers(with:)` 메서드를 통해 반영합니다.
-
-#### updateTickers 메서드
-- 새로운 데이터와 기존 데이터를 비교하여 변경된 부분만 업데이트하는 메서드입니다.
-- `tickers` 배열의 항목을 순회하며 기존 항목과 비교하고, 가격, 변동률, 거래대금 등 주요 데이터가 변경된 경우에만 업데이트하여 성능을 최적화합니다.
-- 업데이트 시 기존 항목의 `fullName`과 `bookmark` 상태를 유지하여 UI의 일관성을 보장합니다.
-
 #### fetchTickers 메서드
 - 초기 데이터를 단발성으로 가져오는 메서드로, `Repository`의 `fetchTickersWithCurrencies()`를 호출하여 시세 및 통화 데이터를 가져옵니다.
 - 데이터가 성공적으로 로드되면, 즐겨찾기 상태와 정렬 기준을 적용하여 `tickers`를 업데이트하고, `isDataLoaded` 값을 `true`로 변경합니다.
+
+#### updateTickers 메서드
+- WebSocket에서 수신된 실시간 데이터를 기반으로 `tickers` 배열을 업데이트하는 메서드입니다.
+- 기존 데이터와 비교하여 변경된 부분만 업데이트하여 성능을 최적화합니다.
+
+#### connectWebSocketAndSubscribe 메서드
+- WebSocket 연결을 초기화하고, 특정 암호화폐 `symbol` 리스트를 구독하는 메서드입니다.
+- 실시간 데이터를 수신하며 UI 상태를 지속적으로 업데이트합니다.
 
 #### updateSortOption 메서드
 - 정렬 기준을 변경하는 메서드로, 현재 선택된 기준을 다시 선택하면 오름차순/내림차순을 토글하고, 새로운 기준을 선택하면 내림차순으로 설정합니다.
