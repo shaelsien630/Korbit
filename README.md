@@ -329,7 +329,5 @@ korbit
 
 ## 6. 실행 화면
 
-<br>
-
 ![](https://github.com/user-attachments/assets/d531e518-4932-4eaa-b16a-44da46cf60f8)
 
